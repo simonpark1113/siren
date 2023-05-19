@@ -500,11 +500,11 @@ class CelebA(Dataset):
         super().__init__()
         assert split in ['train', 'test', 'val'], "Unknown split"
 
-        self.root = '/media/data3/awb/CelebA/kaggle/img_align_celeba/img_align_celeba'
+        self.root = '/root/media/data3/awb/CelebA/kaggle/img_align_celeba/img_align_celeba'
         self.img_channels = 3
         self.fnames = []
 
-        with open('/media/data3/awb/CelebA/kaggle/list_eval_partition.csv', newline='') as csvfile:
+        with open('/root/media/data3/awb/CelebA/kaggle/list_eval_partition.csv', newline='') as csvfile:
             rowreader = csv.reader(csvfile, delimiter=',', quotechar='|')
             for row in rowreader:
                 if split == 'train' and row[1] == '0':

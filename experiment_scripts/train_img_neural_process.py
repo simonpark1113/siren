@@ -57,7 +57,7 @@ generalization_dataset = dataio.ImageGeneralizationWrapper(coord_dataset,
                                                            generalization_mode=gmode)
 image_resolution = (32, 32)
 
-dataloader = DataLoader(generalization_dataset, shuffle=True, batch_size=opt.batch_size, pin_memory=True, num_workers=0)
+dataloader = DataLoader(generalization_dataset, shuffle=True, batch_size=opt.batch_size, pin_memory=True, num_workers=4)
 
 if opt.conv_encoder:
     model = meta_modules.ConvolutionalNeuralProcessImplicit2DHypernet(in_features=img_dataset.img_channels,
