@@ -74,6 +74,8 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
 
                 train_loss = 0.
                 for loss_name, loss in losses.items():
+                    if(loss_name == 'adversarial_loss' and epoch%50!=0):
+                        continue
                     single_loss = loss.mean()
 
                     if loss_schedules is not None and loss_name in loss_schedules:

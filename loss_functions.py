@@ -4,6 +4,37 @@ import torch.nn.functional as F
 import diff_operators
 import modules
 
+#for impording perceptual loss
+from torchvision.models.vgg import vgg16
+from torch import nn
+import dataio
+
+# predefining the vgg model for perceptual loss
+vgg = vgg16(pretrained=True)
+loss_network = nn.Sequential(*list(vgg.features)[:31]).eval()
+loss_network = loss_network.cuda()
+for param in loss_network.parameters():
+    param.requires_grad = False
+
+#  / discriminator loss
+import sys
+import torch.optim as optim
+sys.path.insert(0, '/root/SRGAN_1')
+from model import Discriminator, Discriminator_P
+netD = Discriminator()
+netD.cuda()
+netD.train()
+optimizerD = optim.Adam(netD.parameters(), lr=1e-6)
+
+netD_P = Discriminator_P()
+netD_P.cuda()
+netD_P.train()
+optimizerD_P = optim.Adam(netD_P.parameters(), lr=1e-6)
+start_pos = 5
+count = 0
+# 
+
+downscaler = nn.AvgPool2d(3, stride=2, padding=(1,1))
 
 def image_mse(mask, model_output, gt):
     if mask is None:
@@ -72,9 +103,12 @@ def hypo_weight_loss(model_output):
 
 
 def image_hypernetwork_loss(mask, kl, fw, model_output, gt):
-    return {'img_loss': image_mse(mask, model_output, gt)['img_loss'],
+    return {
+        'img_loss': image_mse(mask, model_output, gt)['img_loss'],
             'latent_loss': kl * latent_loss(model_output),
-            'hypo_weight_loss': fw * hypo_weight_loss(model_output)}
+            'hypo_weight_loss': fw * hypo_weight_loss(model_output),
+            'perceptual_loss': perceptual_loss(model_output, gt),
+            'adversarial_loss': adversarial_loss(model_output, gt)}
 
 
 def function_mse(model_output, gt):
@@ -238,3 +272,71 @@ def sdf(model_output, gt):
             'grad_constraint': grad_constraint.mean() * 5e1}  # 1e1      # 5e1
 
 # inter = 3e3 for ReLU-PE
+
+
+# Perceptual Loss
+def perceptual_loss(model_output, gt):
+    # 0.006 in original SRGAN
+    coef = 0.006
+        
+    # print(model_output['model_out'].shape)
+    # print(model_output['model_out'].unsqueeze(0).shape)
+    image_resolution = (32,32)
+    model_output_perm = dataio.lin2img(model_output['model_out'], image_resolution)
+    
+    # print(gt['img'].shape)
+    # print(gt['img'].unsqueeze(0).shape)
+    gt_perm = dataio.lin2img(gt['img'], image_resolution)
+
+    loss_func = nn.MSELoss()
+    perception_loss = loss_func(loss_network(model_output_perm), loss_network(gt_perm))
+    return coef*perception_loss
+
+# Adversarial Loss
+def adversarial_loss(model_output, gt):
+    # 0.001 in original SRGAN
+    coef = 0.1
+
+    image_resolution = (32,32)
+    model_output_perm = dataio.lin2img(model_output['model_out'], image_resolution)
+
+    gt_perm = dataio.lin2img(gt['img'], image_resolution)
+
+    # Traditional Discriminator
+
+    # netD.zero_grad()
+    # real_out = netD(gt_perm).mean()
+    # fake_out = netD(model_output_perm).mean()
+    # d_loss = 1 - real_out + fake_out
+    # d_loss.backward(retain_graph=True)
+    # optimizerD.step()
+
+    # fake_out = netD(model_output_perm).mean()
+
+    # g_loss = torch.mean(1 - fake_out)
+
+    if(count%1000==0 and count>1):
+        count=0
+        start_pos = max(start_pos-1, 0)
+
+    # print("lf, l/ine 320", gt_perm.shape)
+    if(start_pos>=2):
+        for i in range(start_pos-1):
+            gt_perm = downscaler(gt_perm)
+            model_output_perm = downscaler(model_output_perm)
+    # print("lf, line 323", gt_perm.shape)
+
+    netD_P.zero_grad()
+    real_out = netD_P(gt_perm, start_pos).mean()
+    fake_out = netD_P(model_output_perm, start_pos).mean()
+    d_loss = 1 - real_out + fake_out
+    d_loss.backward(retain_graph=True)
+    optimizerD_P.step()
+
+    fake_out = netD_P(model_output_perm, start_pos).mean()
+
+    g_loss = torch.mean(1-fake_out)
+
+    last_loss = g_loss
+    
+    return coef*g_loss

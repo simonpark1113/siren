@@ -61,7 +61,7 @@ class NeuralProcessImplicit2DHypernet(nn.Module):
         latent_dim = 256
         self.hypo_net = modules.SingleBVPNet(out_features=out_features, type='sine', sidelength=image_resolution,
                                              in_features=2)
-        self.hyper_net = HyperNetwork(hyper_in_features=latent_dim, hyper_hidden_layers=1, hyper_hidden_features=256,
+        self.hyper_net = HyperNetwork(hyper_in_features=latent_dim, hyper_hidden_layers=7, hyper_hidden_features=256,
                                       hypo_module=self.hypo_net)
         self.set_encoder = modules.SetEncoder(in_features=in_features, out_features=latent_dim, num_hidden_layers=2,
                                               hidden_features=latent_dim, nonlinearity=encoder_nl)
@@ -70,6 +70,10 @@ class NeuralProcessImplicit2DHypernet(nn.Module):
     def freeze_hypernet(self):
         for param in self.hyper_net.parameters():
             param.requires_grad = False
+    
+    def unfreeze_hypernet(self):
+        for param in self.hyper_net.parameters():
+            param.requires_grad = True
 
     def get_hypo_net_weights(self, model_input):
         pixels, coords = model_input['img_sub'], model_input['coords_sub']
